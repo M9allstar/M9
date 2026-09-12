@@ -185,7 +185,7 @@ footer.fx button{flex:1}
 </div>
 <footer class="fx"><div class="in" id="fx"></div><div class="tabbar" id="tabbar"></div></footer>
 <div class="toast" id="toast"></div>
-<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-12T05:48:48.101Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
+<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-12T16:04:18.938Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
 <script id="appjs">
 
 "use strict";
@@ -429,7 +429,8 @@ const rec=(t,y)=>{const k=rk(t,y);return S.db.recs[k]=S.db.recs[k]||{};};
 
 /* ===== 計算 ===== */
 const uzrVal=b=>(b&&b.uzrSign==="-"?-1:1)*n(b&&b.uzr);
-function bc(b,pos){b=b||{};
+function bc(b,pos,base){b=b||{};
+  if(!isFinite(base))base=0.740;
   const pa=n(b.pa),g=n(b.g);
   const avg=has(b.avg)?n(b.avg):NaN, obp=has(b.obp)?n(b.obp):NaN;
   let bb=NaN,ab=NaN,h=NaN;
@@ -442,7 +443,7 @@ function bc(b,pos){b=b||{};
   const tb=isFinite(h)?h+n(b.d2)+2*n(b.d3)+3*n(b.hr):NaN;
   const slg=(isFinite(tb)&&ab>0)?tb/ab:NaN;
   const ops=(isFinite(obp)&&isFinite(slg))?obp+slg:NaN;
-  const wrcAuto=isFinite(ops)?Math.round(100+(ops-0.720)*250):NaN;
+  const wrcAuto=isFinite(ops)?Math.round(100+(ops-base)*250):NaN;
   const wrc=has(b.wrc)?n(b.wrc):wrcAuto;
   const uzr=uzrVal(b);
   const adj=(POSADJ[pos]!=null?POSADJ[pos]:0)*(pa/600);
@@ -451,34 +452,49 @@ function bc(b,pos){b=b||{};
   const war=(isFinite(wrc)&&pa>0)?(batWin+(uzr+n(b.sb)*0.15+pa*0.025)/10+adj):NaN;
   return{bb,ab,h,tb,slg,ops,wrcAuto,wrc,uzr,war,avg};}
 let LGC=new Map();
+/* 1995〜2025は実際のセ・リーグの数値 */
+const LGD={1995:[3.92,0.758],1996:[4.07,0.768],1997:[3.86,0.754],1998:[3.67,0.737],1999:[4.13,0.773],2000:[3.91,0.754],2001:[3.78,0.756],2002:[3.59,0.731],2003:[4.17,0.777],2004:[4.40,0.798],2005:[4.11,0.767],2006:[3.68,0.737],2007:[3.84,0.753],2008:[3.74,0.738],2009:[3.55,0.725],2010:[4.13,0.765],2011:[3.06,0.665],2012:[2.87,0.670],2013:[3.72,0.721],2014:[3.89,0.742],2015:[3.25,0.697],2016:[3.69,0.721],2017:[3.68,0.719],2018:[4.10,0.754],2019:[3.90,0.738],2020:[3.83,0.738],2021:[3.61,0.720],2022:[3.36,0.678],2023:[3.19,0.668],2024:[2.88,0.645],2025:[2.97,0.652]};
+const LG_LO=1995,LG_HI=2025;
 function lgEra(y){
   y=n(y)||2000;
   if(LGC.has(y))return LGC.get(y);
   const L=S.db.league=S.db.league||{};
-  const A=1950;
-  let v=3.80;
-  for(let t=A;t<=y;t++){
+  if(has(L[y])){const v0=n(L[y]);LGC.set(y,v0);return v0;}
+  if(LGD[y]){LGC.set(y,LGD[y][0]);return LGD[y][0];}
+  let v,from,dir;
+  if(y>LG_HI){v=lgEra(LG_HI);from=LG_HI+1;dir=1;}
+  else{v=lgEra(LG_LO);from=LG_LO-1;dir=-1;}
+  for(let t=from;(dir>0)?(t<=y):(t>=y);t+=dir){
     if(has(L[t]))v=n(L[t]);
-    else if(t>A){
+    else{
       const h=Math.abs(Math.round(Math.sin(t*12.9898)*43758.5453));
-      let d=((h%41)-20)/100*0.85-(v-3.80)*0.30;
-      if(d>0.2)d=0.2;
-      if(d<-0.2)d=-0.2;
+      let d=((h%41)-20)/100*0.8-(v-3.80)*0.30;
+      if(d>0.25)d=0.25;
+      if(d<0-0.25)d=0-0.25;
       const prev=v;
       v=Math.round((v+d)*100)/100;
       if(v>4.10)v=4.10;
       if(v<3.50)v=3.50;
-      if(v>prev+0.2)v=Math.round((prev+0.2)*100)/100;
-      if(v<prev-0.2)v=Math.round((prev-0.2)*100)/100;
+      if(v>prev+0.25)v=Math.round((prev+0.25)*100)/100;
+      if(v<prev-0.25)v=Math.round((prev-0.25)*100)/100;
     }
     LGC.set(t,v);
   }
   return v;
 }
+function lgOPS(y){
+  y=n(y)||2000;
+  const L=S.db.league||{};
+  if(!has(L[y])&&LGD[y])return LGD[y][1];
+  let v=0.740+(lgEra(y)-3.80)*0.09;
+  if(v>0.770)v=0.770;
+  if(v<0.710)v=0.710;
+  return Math.round(v*1000)/1000;
+}
 function pcalc(q,LG){q=q||{};
   if(!isFinite(LG))LG=LG_ERA;
   const g=n(q.g),gs=n(q.gs),ipg=n(q.ipg),era=has(q.era)?n(q.era):NaN,k9=has(q.k9)?n(q.k9):NaN,bb=n(q.ba);
-  const ip=(g>0&&ipg>0)?g*ipg:NaN;
+  const ip=g>0?((gs>0?ipg*gs:0)+(g-gs)*1.0):NaN;
   const outs=isFinite(ip)?Math.round(ip*3):0;
   const er=(isFinite(ip)&&isFinite(era))?era*ip/9:NaN;
   const so=(isFinite(ip)&&isFinite(k9))?k9*ip/9:NaN;
@@ -498,7 +514,7 @@ function pcalc(q,LG){q=q||{};
     if(qsr<0)qsr=0; if(qsr>0.95)qsr=0.95;
     qs=Math.round(qsr*gs);
   }
-  const rel=g>0?(0.75+0.25*Math.min(1,gs/g)):1;
+  const rel=g>0?(0.85+0.15*Math.min(1,gs/g)):1;
   const war=isFinite(ip)&&isFinite(era)?(((LG-era)*ip/9/10*1.17+ip*0.0103)*rel):NaN;
   return{outs,ip,er,so,ha,whip,wpct,qsr,qs,war,era,h9};}
 const REG_PA=g=>Math.round(g*3.1),REG_IP=g=>g;
@@ -526,17 +542,18 @@ function rights(p){
 }
 function totals(p){
   const ss=p.seasons,yrs=ss.length,B={},P={};
-  ["g","pa","ab","h","d2","d3","hr","rbi","sb","bb","ph","uzr","wrc"].forEach(k=>B[k]=0);
-  ["w","l","sv","hld","g","gs","cg","sho","ba","er","so","ha","qs","war"].forEach(k=>P[k]=0);
+  ["g","pa","ab","h","d2","d3","hr","rbi","sb","bb","ph","uzr","wrc","salary"].forEach(k=>B[k]=0);
+  ["w","l","sv","hld","g","gs","cg","sho","ba","er","so","ha","qs","war","salary"].forEach(k=>P[k]=0);
   let tb=0,outs=0,uzr=0,wrc=0,warB=0,uzrY=0,wrcY=0,warY=0;
   ss.forEach(s=>{const b=s.bat||{},q=s.pit||{};
-    const c=bc(b,s.pos);
+    const c=bc(b,s.pos,lgOPS(s.year));
     ["g","pa","d2","d3","hr","rbi","sb","ph"].forEach(k=>B[k]+=n(b[k]));
     if(isFinite(c.h)){B.h+=c.h;B.ab+=c.ab;B.bb+=c.bb;tb+=c.tb;}
     if(isFinite(c.war)){warB+=c.war;warY++;}
     if(n(b.pa)>0||has(b.uzr)){uzr+=c.uzr;uzrY++;}
     if(isFinite(c.wrc)){wrc+=c.wrc;wrcY++;}
     ["w","l","sv","hld","g","gs","cg","sho","ba"].forEach(k=>P[k]+=n(q[k]));
+    P.salary+=n(s.salary);B.salary+=n(s.salary);
     const pq=pcalc(q,lgEra(s.year));
     if(isFinite(pq.ip)){outs+=pq.outs;P.er+=pq.er;P.so+=pq.so;P.ha+=pq.ha;P.war+=pq.war;}
     if(isFinite(pq.qs))P.qs+=pq.qs;});
@@ -704,7 +721,7 @@ function statTable(list,pit){
       add(s.role||"—");add(n(s.pit.g));add(n(s.pit.gs));add(isFinite(c.ip)?outsIp(c.outs):"—");
       add(n(s.pit.w));add(n(s.pit.l));add(n(s.pit.sv));add(n(s.pit.hld));
       add(r2(c.era));add(r2(c.whip));add(pct(c.qsr));add(r1(c.war));
-    }else{const c=bc(s.bat,s.pos);
+    }else{const c=bc(s.bat,s.pos,lgOPS(s.year));
       add(s.pos||"—");add(n(s.bat.g));add(n(s.bat.pa));add(r3(c.avg));add(n(s.bat.hr));
       add(n(s.bat.rbi));add(n(s.bat.sb));add(isFinite(c.ops)?r3(c.ops-c.slg):"—");
       add(isFinite(c.ops)?c.ops.toFixed(3):"—");add(r1(c.uzr));
@@ -717,6 +734,10 @@ function lineupBlock(y,ros){
   const L=S.db.lineups[key]=S.db.lineups[key]||{order:[],rot:[],closer:""};
   while(L.order.length<9)L.order.push({pid:"",pos:""});
   while(L.rot.length<6)L.rot.push("");
+  const inRoster=id=>!id||ros.some(x=>x.p.id===id);
+  L.order.forEach(o=>{if(!inRoster(o.pid)){o.pid="";o.pos="";}});
+  L.rot=L.rot.map(id=>inRoster(id)?id:"");
+  if(!inRoster(L.closer))L.closer="";
   const bats=ros.filter(x=>!isP(x.p)),pits=ros.filter(x=>isP(x.p));
   const w=el("div","blk");w.append(el("h4",null,"打線"));
   const lu=el("div","lu");
@@ -744,7 +765,7 @@ function lineupBlock(y,ros){
     const upd=()=>{
       const f=ros.find(x=>x.p.id===slot.pid);
       if(!f){st.replaceChildren();return;}
-      const c=bc(f.s.bat,f.s.pos);
+      const c=bc(f.s.bat,f.s.pos,lgOPS(f.s.year));
       const age=ageAt(f.p,n(f.s.year));
       const line=isP(f.p)
         ?(n(f.s.pit.w)+"勝 "+r2(pcalc(f.s.pit,lgEra(f.s.year)).era))
@@ -831,7 +852,7 @@ function teamHist(m,fx,ys){
   S.db.players.forEach(p=>p.seasons.forEach(s=>{
     if(s.team!==HOME)return;
     const a=agg.get(p.id)||{p,hr:0,h:0,w:0,sv:0,war:0,y:0};
-    const cb=bc(s.bat,s.pos),cp=pcalc(s.pit,lgEra(s.year));
+    const cb=bc(s.bat,s.pos,lgOPS(s.year)),cp=pcalc(s.pit,lgEra(s.year));
     a.hr+=n(s.bat.hr);
     if(isFinite(cb.h))a.h+=cb.h;
     if(isFinite(cb.war))a.war+=cb.war;
@@ -940,7 +961,7 @@ function tabInfo(m,p){
 const BSEQ=[["g","試合","in"],["pa","打席","in"],["ab","打数","calc"],["avg","打率","in"],
 ["hr","本塁打","in"],["rbi","打点","in"],["obp","出塁率","in"],["ops","OPS","calc"],
 ["h","安打","calc"],["bb","四球","calc"],["sb","盗塁","in"],["d2","二塁打","in"],["d3","三塁打","in"],
-["slg","長打率","calc"],["wrc","wRC+","in"],["uzr","UZR","in"],["war","WAR","calc"],["ph","代打","in"],
+["slg","長打率","calc"],["wrc","wRC+","in"],["uzr","UZR","in"],["war","WAR","calc"],["ph","代打","in"],["salary","年俸","in"],
 ["team","チーム","team"],["league","リーグ","league"],["age","年齢","age"],["pos","守備","pos"],
 ["games","試合数","games"],["reg","規定","reg"]];
 const PSEQ=[["g","登板","in"],["gs","先発","in"],["ip","投球回","calc"],["era","防御率","in"],
@@ -948,10 +969,10 @@ const PSEQ=[["g","登板","in"],["gs","先発","in"],["ip","投球回","calc"],[
 ["whip","WHIP","calc"],["wpct","勝率","calc"],["so","奪三振","calc"],["k9","奪三振率","in"],
 ["ba","与四球","in"],["ha","被安打","calc"],["er","自責点","calc"],
 ["qs","QS","calc"],["qsr","QS率","calc"],["cg","完投","in"],["sho","完封","in"],
-["ipg","平均投球回","in"],["war","WAR","calc"],
+["ipg","先発平均投球回","in"],["war","WAR","calc"],["salary","年俸","in"],
 ["team","チーム","team"],["league","リーグ","league"],["age","年齢","age"],["pos","起用","role"],
 ["games","試合数","games"],["reg","規定","reg"]];
-const PH={avg:".280",obp:".350",ipg:"6.0",era:"3.00",k9:"8.0"};
+const PH={avg:".280",obp:".350",ipg:"6.0",era:"3.00",k9:"8.0",salary:"万円"};
 const RND=v=>isFinite(v)?String(Math.round(v)):"—";
 
 function seasonRow(p,s,R,SEQ,pit){
@@ -980,6 +1001,7 @@ function seasonRow(p,s,R,SEQ,pit){
       const iv=el("input","w4");iv.inputMode="decimal";iv.value=obj.uzr!=null?obj.uzr:"";
       iv.oninput=()=>{obj.uzr=iv.value;upd();save(1);};
       box.append(sg,iv);td.append(box);tr.append(td);return;}
+    if(ty==="in"&&k==="salary"){const td=cell(s,"salary",{mode:"numeric",ph:"万円"});tr.append(td);return;}
     if(ty==="in"){const td=cell(obj,k,{ph:PH[k]||"",on:()=>upd()});ins[k]=td;tr.append(td);return;}
     if(ty==="calc"){const td=el("td","calc");calc[k]=td;tr.append(td);return;}
     if(ty==="team"){const td=el("td","team"),sel=el("select");
@@ -1021,7 +1043,7 @@ function seasonRow(p,s,R,SEQ,pit){
       calc.war.textContent=r1(c.war);
       const need=REG_IP(n(s.games)),ok=c.outs/3>=need;
       calc.reg.textContent=need;calc.reg.className="calc"+(ok?" hit":"");
-    }else{const c=bc(s.bat,s.pos);
+    }else{const c=bc(s.bat,s.pos,lgOPS(s.year));
       calc.h.textContent=RND(c.h);calc.bb.textContent=RND(c.bb);calc.ab.textContent=RND(c.ab);
       calc.slg.textContent=r3(c.slg);
       calc.ops.textContent=isFinite(c.ops)?c.ops.toFixed(3):"—";
@@ -1053,7 +1075,8 @@ function tabSeason(m,p){
       if(k==="whip")return r2(t.whip);if(k==="wpct")return r3(t.wpct);
       if(k==="qs")return String(t.P.qs);if(k==="qsr")return pct(t.qsr);
       if(k==="war")return r1(t.P.war);
-      if(k==="era")return r2(t.era);if(k==="ipg")return r2(t.ipg);
+      if(k==="salary")return "";
+      if(k==="era")return r2(t.era);if(k==="ipg")return r2(t.P.gs>0?(t.outs/3)/t.P.gs:NaN);
       if(k==="k9")return r1(t.outs>0?t.P.so*27/t.outs:NaN);
       return t.P[k]!=null?String(t.P[k]):"";
     }
@@ -1061,7 +1084,8 @@ function tabSeason(m,p){
     if(k==="slg")return r3(t.slg);if(k==="ops")return isFinite(t.ops)?t.ops.toFixed(3):"—";
     if(k==="war")return r1(t.warB);
     if(k==="avg")return r3(t.avg);if(k==="obp")return r3(t.obp);
-    if(k==="uzr")return r1(t.uzr);if(k==="wrc")return r1(t.wrcY?t.wrc/t.wrcY:NaN);
+    if(k==="salary")return String(t.B.salary||"");
+    if(k==="uzr")return r1(t.uzrY?t.uzr/t.uzrY:NaN);if(k==="wrc")return r1(t.wrcY?t.wrc/t.wrcY:NaN);
     return t.B[k]!=null?String(t.B[k]):"";
   };
   const avgv=k=>{
@@ -1070,6 +1094,7 @@ function tabSeason(m,p){
       if(k==="so")return r1(t.P.so/y);if(k==="ha")return r1(t.P.ha/y);if(k==="er")return r1(t.P.er/y);
       if(k==="qs")return r1(t.P.qs/y);if(k==="war")return r1(t.P.war/y);
       if(k==="whip"||k==="wpct"||k==="qsr"||k==="era"||k==="ipg"||k==="k9")return "—";
+      if(k==="salary")return r1(t.P.salary/y);
       return t.P[k]!=null?r1(t.P[k]/y):"";
     }
     if(k==="h")return r1(t.B.h/y);if(k==="bb")return r1(t.B.bb/y);if(k==="ab")return r1(t.B.ab/y);
@@ -1077,6 +1102,7 @@ function tabSeason(m,p){
     if(k==="uzr")return r1(t.uzrY?t.uzr/t.uzrY:NaN);
     if(k==="wrc")return r1(t.wrcY?t.wrc/t.wrcY:NaN);
     if(k==="avg"||k==="obp"||k==="slg"||k==="ops")return "—";
+    if(k==="salary")return r1(t.B.salary/y);
     return t.B[k]!=null?r1(t.B[k]/y):"";
   };
   const mk=(cls,label,fn)=>{
@@ -1148,12 +1174,15 @@ function detail(p,s,R){
   inj.append(ia);w.append(inj);
 
   const lg=el("div","blk");lg.append(el("h4",null,"この年のリーグ環境"));
+  const sg=el("div","grid");
+  sg.append(field("年俸（万円）",s,"salary",{mode:"numeric",ph:"3000"}));
+  lg.append(sg);
   const lf=el("div","f");lf.append(el("label",null,"リーグ平均防御率"));
   const li=el("input");li.inputMode="decimal";li.value=String(lgEra(s.year));
   li.style.cssText="width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:3px;font-size:15px";
   li.oninput=()=>{S.db.league[n(s.year)||2000]=li.value;LGC=new Map();save(1);};
   lf.append(li);lg.append(lf);
-  lg.append(el("p","note","年ごとに3.50〜4.10の範囲で自動的に決まります。防御率の評価・被安打・QS率・WARの基準になります。書き換えれば固定されます。"));
+  lg.append(el("p","note","1995〜2025年は実際のセ・リーグの数値。それ以外の年は防御率3.80／OPS.740を中心に、防御率±0.30・OPS±30の範囲で緩やかに動きます。防御率の評価・被安打・QS率・WARの基準になります。書き換えれば固定されます。"));
   w.append(lg);
   const dz=el("div","blk");dz.append(el("h4",null,isMLB(s)?"サービスタイム":"一軍登録日数"));
   const dg=el("div","grid");
@@ -1183,7 +1212,7 @@ function tabTotal(m,p){
     add("WHIP",r2(t.whip),"("+R1(t.P.ha)+"＋"+t.P.ba+") ／ "+outsIp(t.outs)+"回");
     add("勝率",r3(t.wpct),t.P.w+" ／ "+(t.P.w+t.P.l));
     add("QS率",pct(t.qsr),t.P.qs+" ／ 先発 "+t.P.gs);
-    add("平均投球回",r2(t.ipg),outsIp(t.outs)+"回 ／ 登板 "+t.P.g);
+    add("先発平均投球回",r2(t.P.gs>0?(t.outs/3)/t.P.gs:NaN),outsIp(t.outs)+"回 ／ 先発 "+t.P.gs);
     add("奪三振率",r1(t.outs>0?t.P.so*27/t.outs:NaN),"奪三振 "+R1(t.P.so));
     add("WAR",r1(t.P.war),"年平均 "+r1(t.P.war/y));
   }else{
@@ -1193,7 +1222,7 @@ function tabTotal(m,p){
     add("長打率",r3(t.slg),"塁打 "+R0(t.tb)+" ／ "+R0(t.B.ab));
     add("OPS",isFinite(t.ops)?t.ops.toFixed(3):"—","通算出塁率 ＋ 通算長打率");
     add("WAR",r1(t.warB),"年平均 "+r1(t.warY?t.warB/t.warY:NaN));
-    add("UZR",r1(t.uzr),"年平均 "+r1(t.uzrY?t.uzr/t.uzrY:NaN));
+    add("UZR（年平均）",r1(t.uzrY?t.uzr/t.uzrY:NaN),"通算 "+r1(t.uzr));
     add("wRC+",r1(t.wrcY?t.wrc/t.wrcY:NaN),"年平均");
   }
   d.append(kv);m.append(d);
