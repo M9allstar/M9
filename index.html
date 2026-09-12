@@ -46,9 +46,12 @@ button:active{background:var(--head)}
 .pl{display:flex;gap:14px;align-items:center;width:100%;text-align:left;background:var(--panel);
   padding:13px 14px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px}
 .no{flex:0 0 34px;text-align:center;font-size:19px;font-weight:700;color:var(--accent)}
-.pl .nm{font-size:16px;font-weight:700}
-.pl .mt{font-size:11.5px;color:var(--sub)}
-.pl .rt{margin-left:auto;text-align:right;font-size:11.5px;color:var(--dim);white-space:nowrap}
+.pl .mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.pl .nm{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .mt{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .rt{flex:0 0 auto;text-align:right;font-size:11.5px;color:var(--dim);white-space:nowrap;
+  display:flex;flex-direction:column;gap:1px}
+.pl .yr2{color:var(--sub);font-size:10.5px}
 .retired .nm{color:var(--dim)}
 .empty{padding:36px 4px;color:var(--sub);font-size:14px;line-height:1.9;text-align:center}
 
@@ -87,6 +90,12 @@ td.calc{color:var(--dim);background:#f2f8fb;padding:10px}
 td.txt{text-align:left;padding:10px}
 td.team select{min-width:112px}
 td .w4{min-width:52px}
+td.uzrc{padding:0}
+.uzrbox{display:flex;align-items:center}
+.sgn{flex:0 0 30px;border:0;background:none;padding:10px 0;font-size:15px;font-weight:700;
+  color:var(--accent);border-radius:0}
+.sgn.mi{color:#1b6ea8}
+.uzrbox input{flex:1;min-width:44px}
 td.calc.hit{color:var(--accent);font-weight:700}
 tr.tot td{font-weight:700;background:var(--head);padding:10px;border-top:2px solid var(--ink)}
 tr.avg td{color:var(--dim);background:#eef6fa;padding:8px 10px;font-size:12px}
@@ -176,7 +185,7 @@ footer.fx button{flex:1}
 </div>
 <footer class="fx"><div class="in" id="fx"></div><div class="tabbar" id="tabbar"></div></footer>
 <div class="toast" id="toast"></div>
-<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-11T10:00:06.459Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
+<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-12T05:48:48.101Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
 <script id="appjs">
 
 "use strict";
@@ -438,7 +447,7 @@ function bc(b,pos){b=b||{};
   const uzr=uzrVal(b);
   const adj=(POSADJ[pos]!=null?POSADJ[pos]:0)*(pa/600);
   const x=(wrc-100)/10;
-  const batWin=(0.792*x-0.0208*x*x)*(pa/600);
+  const batWin=(x<=6?(0.792*x-0.0208*x*x):(4.003+0.774*(x-6)))*(pa/600);
   const war=(isFinite(wrc)&&pa>0)?(batWin+(uzr+n(b.sb)*0.15+pa*0.025)/10+adj):NaN;
   return{bb,ab,h,tb,slg,ops,wrcAuto,wrc,uzr,war,avg};}
 let LGC=new Map();
@@ -571,11 +580,18 @@ function bookView(m,fx){
     const t=totals(p),b=el("button","pl"+(p.retired?" retired":""));
     const ys=p.seasons.map(s=>n(s.year)).filter(Boolean).sort((a,b)=>a-b);
     const span=ys.length?ys[0]+"〜"+ys[ys.length-1]:"年度未入力";
-    b.innerHTML='\u003cspan class="no">'+(p.no||"")+'\u003c/span>\u003cspan>\u003cspan class="nm">'+
-      (p.name||"（無名）")+'\u003c/span>\u003cbr>\u003cspan class="mt">'+p.type+
-      (p.positions.length?"・"+p.positions.join("／"):"")+"・"+span+
-      '\u003c/span>\u003c/span>\u003cspan class="rt">'+(isP(p)?t.P.w+"勝"+t.P.l+"敗 "+r2(t.era):t.B.h+"安打 "+t.B.hr+"本 "+r3(t.avg))+
-      '\u003cbr>'+t.yrs+'年\u003c/span>';
+    const pos=p.positions.length?p.positions.slice(0,2).join("／")+(p.positions.length>2?"他":""):p.type;
+    b.append(el("span","no",p.no||""));
+    const mid=el("span","mid");
+    mid.append(el("span","nm",p.name||"（無名）"));
+    mid.append(el("span","mt",pos+"・"+span));
+    b.append(mid);
+    const rt=el("span","rt");
+    rt.append(el("span",null,isP(p)
+      ?(t.P.w+"勝"+t.P.l+"敗 "+r2(t.era))
+      :(Math.round(t.B.h)+"安打 "+t.B.hr+"本 "+r3(t.avg))));
+    rt.append(el("span","yr2",t.yrs+"年"));
+    b.append(rt);
     b.onclick=()=>{S.cur=p.id;S.tab="info";S.open=null;render();scrollTo(0,0);};
     m.append(b);});
   const a=el("button","pri","選手を追加");
@@ -921,17 +937,18 @@ function tabInfo(m,p){
   rb.append(r);m.append(rb);
   m.append(el("p","note","ドラフト年は生年月日と経歴から自動（高卒＝18歳の年、大卒＝22歳、社会人＝21歳）。違えば手入力に切り替え。守備位置のコンバートは年度成績の出来事欄に書き、その年の守備位置は成績表の「守備」列で選びます。"));
 }
-const BSEQ=[["avg","打率","in"],["hr","本塁打","in"],["rbi","打点","in"],["ops","OPS","calc"],["war","WAR","calc"],
-["g","試合","in"],["pa","打席","in"],["obp","出塁率","in"],["h","安打","calc"],["d2","二塁打","in"],["d3","三塁打","in"],
-["sb","盗塁","in"],["bb","四球","calc"],["ab","打数","calc"],["slg","長打率","calc"],["ph","代打","in"],
-["uzr","UZR","in"],["wrc","wRC+","in"],
+const BSEQ=[["g","試合","in"],["pa","打席","in"],["ab","打数","calc"],["avg","打率","in"],
+["hr","本塁打","in"],["rbi","打点","in"],["obp","出塁率","in"],["ops","OPS","calc"],
+["h","安打","calc"],["bb","四球","calc"],["sb","盗塁","in"],["d2","二塁打","in"],["d3","三塁打","in"],
+["slg","長打率","calc"],["wrc","wRC+","in"],["uzr","UZR","in"],["war","WAR","calc"],["ph","代打","in"],
 ["team","チーム","team"],["league","リーグ","league"],["age","年齢","age"],["pos","守備","pos"],
 ["games","試合数","games"],["reg","規定","reg"]];
-const PSEQ=[["w","勝","in"],["l","敗","in"],["era","防御率","in"],["ip","投球回","calc"],["war","WAR","calc"],
-["sv","セーブ","in"],["hld","ホールド","in"],["g","登板","in"],["gs","先発","in"],["ipg","平均投球回","in"],
-["k9","奪三振率","in"],["so","奪三振","calc"],["whip","WHIP","calc"],["qs","QS","calc"],["qsr","QS率","calc"],
-["wpct","勝率","calc"],["cg","完投","in"],["sho","完封","in"],["ba","与四球","in"],["ha","被安打","calc"],
-["er","自責点","calc"],
+const PSEQ=[["g","登板","in"],["gs","先発","in"],["ip","投球回","calc"],["era","防御率","in"],
+["w","勝","in"],["l","敗","in"],["sv","セーブ","in"],["hld","ホールド","in"],
+["whip","WHIP","calc"],["wpct","勝率","calc"],["so","奪三振","calc"],["k9","奪三振率","in"],
+["ba","与四球","in"],["ha","被安打","calc"],["er","自責点","calc"],
+["qs","QS","calc"],["qsr","QS率","calc"],["cg","完投","in"],["sho","完封","in"],
+["ipg","平均投球回","in"],["war","WAR","calc"],
 ["team","チーム","team"],["league","リーグ","league"],["age","年齢","age"],["pos","起用","role"],
 ["games","試合数","games"],["reg","規定","reg"]];
 const PH={avg:".280",obp:".350",ipg:"6.0",era:"3.00",k9:"8.0"};
@@ -952,6 +969,17 @@ function seasonRow(p,s,R,SEQ,pit){
   const obj=pit?(s.pit=s.pit||{}):(s.bat=s.bat||{});
   const calc={},ins={};
   SEQ.forEach(([k,lb,ty])=>{
+    if(ty==="in"&&k==="uzr"&&!pit){
+      const td=el("td","uzrc");
+      const box=el("div","uzrbox");
+      const sg=el("button","sgn",obj.uzrSign==="-"?"−":"＋");
+      sg.onclick=()=>{obj.uzrSign=(obj.uzrSign==="-")?"+":"-";
+        sg.textContent=obj.uzrSign==="-"?"−":"＋";
+        sg.className="sgn"+(obj.uzrSign==="-"?" mi":"");upd();save(1);};
+      if(obj.uzrSign==="-")sg.className="sgn mi";
+      const iv=el("input","w4");iv.inputMode="decimal";iv.value=obj.uzr!=null?obj.uzr:"";
+      iv.oninput=()=>{obj.uzr=iv.value;upd();save(1);};
+      box.append(sg,iv);td.append(box);tr.append(td);return;}
     if(ty==="in"){const td=cell(obj,k,{ph:PH[k]||"",on:()=>upd()});ins[k]=td;tr.append(td);return;}
     if(ty==="calc"){const td=el("td","calc");calc[k]=td;tr.append(td);return;}
     if(ty==="team"){const td=el("td","team"),sel=el("select");
