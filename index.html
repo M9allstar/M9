@@ -92,6 +92,7 @@ td.team select{min-width:112px}
 td .w4{min-width:52px}
 td.uzrc{padding:0}
 .uzrbox{display:flex;align-items:center}
+.sgn.unit{color:var(--dim);font-size:12px;font-weight:600}
 .sgn{flex:0 0 30px;border:0;background:none;padding:10px 0;font-size:15px;font-weight:700;
   color:var(--accent);border-radius:0}
 .sgn.mi{color:#1b6ea8}
@@ -185,7 +186,7 @@ footer.fx button{flex:1}
 </div>
 <footer class="fx"><div class="in" id="fx"></div><div class="tabbar" id="tabbar"></div></footer>
 <div class="toast" id="toast"></div>
-<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-12T16:04:18.938Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
+<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-13T01:28:59.873Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
 <script id="appjs">
 
 "use strict";
@@ -553,7 +554,7 @@ function totals(p){
     if(n(b.pa)>0||has(b.uzr)){uzr+=c.uzr;uzrY++;}
     if(isFinite(c.wrc)){wrc+=c.wrc;wrcY++;}
     ["w","l","sv","hld","g","gs","cg","sho","ba"].forEach(k=>P[k]+=n(q[k]));
-    P.salary+=n(s.salary);B.salary+=n(s.salary);
+    P.salary+=salMan(s);B.salary+=salMan(s);
     const pq=pcalc(q,lgEra(s.year));
     if(isFinite(pq.ip)){outs+=pq.outs;P.er+=pq.er;P.so+=pq.so;P.ha+=pq.ha;P.war+=pq.war;}
     if(isFinite(pq.qs))P.qs+=pq.qs;});
@@ -974,6 +975,12 @@ const PSEQ=[["g","登板","in"],["gs","先発","in"],["ip","投球回","calc"],[
 ["games","試合数","games"],["reg","規定","reg"]];
 const PH={avg:".280",obp:".350",ipg:"6.0",era:"3.00",k9:"8.0",salary:"万円"};
 const RND=v=>isFinite(v)?String(Math.round(v)):"—";
+const salMan=s=>n(s.salary)*(s.salaryUnit==="億"?10000:1);
+function yen(m){
+  if(!isFinite(m)||m<=0)return"";
+  if(m>=10000){const o=Math.floor(m/10000),r=Math.round(m%10000);return o+"億"+(r?r+"万":"");}
+  return Math.round(m)+"万";
+}
 
 function seasonRow(p,s,R,SEQ,pit){
   const tr=el("tr",S.open===s.id?"open":"");
@@ -1001,7 +1008,15 @@ function seasonRow(p,s,R,SEQ,pit){
       const iv=el("input","w4");iv.inputMode="decimal";iv.value=obj.uzr!=null?obj.uzr:"";
       iv.oninput=()=>{obj.uzr=iv.value;upd();save(1);};
       box.append(sg,iv);td.append(box);tr.append(td);return;}
-    if(ty==="in"&&k==="salary"){const td=cell(s,"salary",{mode:"numeric",ph:"万円"});tr.append(td);return;}
+    if(ty==="in"&&k==="salary"){
+      const td=el("td","uzrc");
+      const box=el("div","uzrbox");
+      const iv=el("input","w4");iv.inputMode="numeric";iv.value=s.salary!=null?s.salary:"";
+      iv.oninput=()=>{s.salary=iv.value;save(1);};
+      const ub=el("button","sgn unit",s.salaryUnit==="億"?"億":"万");
+      ub.onclick=()=>{s.salaryUnit=(s.salaryUnit==="億")?"万":"億";
+        ub.textContent=s.salaryUnit;save(1);};
+      box.append(iv,ub);td.append(box);tr.append(td);return;}
     if(ty==="in"){const td=cell(obj,k,{ph:PH[k]||"",on:()=>upd()});ins[k]=td;tr.append(td);return;}
     if(ty==="calc"){const td=el("td","calc");calc[k]=td;tr.append(td);return;}
     if(ty==="team"){const td=el("td","team"),sel=el("select");
@@ -1075,7 +1090,7 @@ function tabSeason(m,p){
       if(k==="whip")return r2(t.whip);if(k==="wpct")return r3(t.wpct);
       if(k==="qs")return String(t.P.qs);if(k==="qsr")return pct(t.qsr);
       if(k==="war")return r1(t.P.war);
-      if(k==="salary")return "";
+      if(k==="salary")return yen(t.P.salary);
       if(k==="era")return r2(t.era);if(k==="ipg")return r2(t.P.gs>0?(t.outs/3)/t.P.gs:NaN);
       if(k==="k9")return r1(t.outs>0?t.P.so*27/t.outs:NaN);
       return t.P[k]!=null?String(t.P[k]):"";
@@ -1084,7 +1099,7 @@ function tabSeason(m,p){
     if(k==="slg")return r3(t.slg);if(k==="ops")return isFinite(t.ops)?t.ops.toFixed(3):"—";
     if(k==="war")return r1(t.warB);
     if(k==="avg")return r3(t.avg);if(k==="obp")return r3(t.obp);
-    if(k==="salary")return String(t.B.salary||"");
+    if(k==="salary")return yen(t.B.salary);
     if(k==="uzr")return r1(t.uzrY?t.uzr/t.uzrY:NaN);if(k==="wrc")return r1(t.wrcY?t.wrc/t.wrcY:NaN);
     return t.B[k]!=null?String(t.B[k]):"";
   };
@@ -1094,7 +1109,7 @@ function tabSeason(m,p){
       if(k==="so")return r1(t.P.so/y);if(k==="ha")return r1(t.P.ha/y);if(k==="er")return r1(t.P.er/y);
       if(k==="qs")return r1(t.P.qs/y);if(k==="war")return r1(t.P.war/y);
       if(k==="whip"||k==="wpct"||k==="qsr"||k==="era"||k==="ipg"||k==="k9")return "—";
-      if(k==="salary")return r1(t.P.salary/y);
+      if(k==="salary")return yen(t.P.salary/y);
       return t.P[k]!=null?r1(t.P[k]/y):"";
     }
     if(k==="h")return r1(t.B.h/y);if(k==="bb")return r1(t.B.bb/y);if(k==="ab")return r1(t.B.ab/y);
@@ -1102,7 +1117,7 @@ function tabSeason(m,p){
     if(k==="uzr")return r1(t.uzrY?t.uzr/t.uzrY:NaN);
     if(k==="wrc")return r1(t.wrcY?t.wrc/t.wrcY:NaN);
     if(k==="avg"||k==="obp"||k==="slg"||k==="ops")return "—";
-    if(k==="salary")return r1(t.B.salary/y);
+    if(k==="salary")return yen(t.B.salary/y);
     return t.B[k]!=null?r1(t.B[k]/y):"";
   };
   const mk=(cls,label,fn)=>{
@@ -1175,7 +1190,8 @@ function detail(p,s,R){
 
   const lg=el("div","blk");lg.append(el("h4",null,"この年のリーグ環境"));
   const sg=el("div","grid");
-  sg.append(field("年俸（万円）",s,"salary",{mode:"numeric",ph:"3000"}));
+  sg.append(field("年俸",s,"salary",{mode:"numeric",ph:"3000"}));
+  sg.append(field("単位",s,"salaryUnit",{options:["万","億"]}));
   lg.append(sg);
   const lf=el("div","f");lf.append(el("label",null,"リーグ平均防御率"));
   const li=el("input");li.inputMode="decimal";li.value=String(lgEra(s.year));
