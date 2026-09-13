@@ -186,7 +186,7 @@ footer.fx button{flex:1}
 </div>
 <footer class="fx"><div class="in" id="fx"></div><div class="tabbar" id="tabbar"></div></footer>
 <div class="toast" id="toast"></div>
-<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-13T01:28:59.873Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
+<script id="save" type="application/json">{"v":2,"savedAt":"2026-09-13T11:22:16.559Z","db":{"players":[],"teams":[{"name":"M9オールスターズ","league":"セ・リーグ"}],"recs":{},"lineups":{},"league":{}}}</script>
 <script id="appjs">
 
 "use strict";
@@ -217,6 +217,9 @@ const n=v=>{const x=parseFloat(v);return isFinite(x)?x:0;};
 const has=v=>v!==""&&v!=null&&isFinite(parseFloat(v));
 const isMLB=s=>s.league==="MLB";
 const isP=p=>p.type==="投手";
+const ORIGIN=[["draft","生え抜き"],["transfer","他球団から加入"],["foreign","助っ人外国人"]];
+const JOINVIA=["FA","トレード","金銭トレード","現役ドラフト","自由契約","新入団","その他"];
+const NM=p=>(((p.last||"")+(p.first?" "+p.first:"")).trim())||"（無名）";
 function ipOuts(v){if(!has(v))return 0;const p=String(v).split(".");const w=Math.trunc(n(p[0]));
   let f=0;if(p[1]!=null){const d=p[1][0];f=d==="1"?1:d==="2"?2:0;}return w*3+f;}
 const outsIp=o=>Math.floor(o/3)+"."+(o%3);
@@ -285,6 +288,9 @@ function normalize(raw){
   if(!db.teams.some(t=>t.name===HOME))db.teams.unshift({name:HOME,league:"セ・リーグ"});
   db.players.forEach(p=>{
     p.seasons=p.seasons||[];
+    if(p.name&&!p.last&&!p.first){p.last=p.name;}
+    if(!p.origin)p.origin=p.foreign?"foreign":"draft";
+    p.foreign=(p.origin==="foreign");
     if(!p.type)p.type=(p.pos==="投手")?"投手":"野手";
     if(!Array.isArray(p.positions))p.positions=(p.pos&&p.pos!=="投手")?[p.pos]:[];
     (p.seasons||[]).forEach(s=>{
@@ -404,7 +410,7 @@ function importFile(){
 }
 
 /* ===== モデル ===== */
-function newPlayer(){return{id:uid(),name:"",no:"",dob:"",from:"",hs:"",school:"",draftYear:"",draftAuto:true,
+function newPlayer(){return{id:uid(),last:"",first:"",no:"",dob:"",from:"",school:"",origin:"draft",foreign:false,joinYear:"",joinVia:"FA",draftYear:"",draftAuto:true,
   draftRank:"",route:"高卒",height:"",type:"野手",positions:[],bats:"右打ち",throws:"右投げ",
   retired:false,retireYear:"",seasons:[]};}
 function newSeason(p){
@@ -601,7 +607,7 @@ function bookView(m,fx){
     const pos=p.positions.length?p.positions.slice(0,2).join("／")+(p.positions.length>2?"他":""):p.type;
     b.append(el("span","no",p.no||""));
     const mid=el("span","mid");
-    mid.append(el("span","nm",p.name||"（無名）"));
+    mid.append(el("span","nm",NM(p)));
     mid.append(el("span","mt",pos+"・"+span));
     b.append(mid);
     const rt=el("span","rt");
@@ -691,7 +697,7 @@ function teamView(m,fx){
     m.append(lineupBlock(y,ros));
     /* タイトル */
     const tl=[];
-    ros.forEach(({p,s})=>(s.titles||[]).forEach(t=>tl.push(p.name+"　"+t)));
+    ros.forEach(({p,s})=>(s.titles||[]).forEach(t=>tl.push(NM(p)+"　"+t)));
     const tb=el("div","blk");tb.append(el("h4",null,"この年のタイトル"));
     if(!tl.length)tb.append(el("p","note","なし"));
     else{const c=el("div","chips");tl.forEach(x=>c.append(el("span","badge",x)));tb.append(c);}
@@ -714,7 +720,7 @@ function statTable(list,pit){
   list.sort((a,b)=>pit?(n(b.s.pit.g)-n(a.s.pit.g)):(n(b.s.bat.pa)-n(a.s.bat.pa)));
   list.forEach(({p,s})=>{
     const tr=el("tr"),st=el("td","stick txt");
-    const lk=el("button","link",(p.no?"#"+p.no+" ":"")+(p.name||"（無名）"));
+    const lk=el("button","link",(p.no?"#"+p.no+" ":"")+(NM(p)));
     lk.onclick=()=>{S.cur=p.id;S.tab="season";S.open=s.id;render();scrollTo(0,0);};
     st.append(lk);tr.append(st);
     const add=v=>tr.append(el("td","calc",String(v)));
@@ -734,10 +740,13 @@ function lineupBlock(y,ros){
   const key=rk(HOME,y);
   const L=S.db.lineups[key]=S.db.lineups[key]||{order:[],rot:[],closer:""};
   while(L.order.length<9)L.order.push({pid:"",pos:""});
-  while(L.rot.length<6)L.rot.push("");
+  while(L.rot.length<5)L.rot.push("");
+  L.mid=L.mid||[];
+  while(L.mid.length<4)L.mid.push("");
   const inRoster=id=>!id||ros.some(x=>x.p.id===id);
   L.order.forEach(o=>{if(!inRoster(o.pid)){o.pid="";o.pos="";}});
   L.rot=L.rot.map(id=>inRoster(id)?id:"");
+  L.mid=L.mid.map(id=>inRoster(id)?id:"");
   if(!inRoster(L.closer))L.closer="";
   const bats=ros.filter(x=>!isP(x.p)),pits=ros.filter(x=>isP(x.p));
   const w=el("div","blk");w.append(el("h4",null,"打線"));
@@ -756,7 +765,7 @@ function lineupBlock(y,ros){
     r.append(el("span","n",String(i+1)));
     const ps=el("select");
     ps.append(new Option("—",""));
-    ros.forEach(({p})=>ps.append(new Option((p.no?"#"+p.no+" ":"")+(p.name||"（無名）"),p.id)));
+    ros.forEach(({p})=>ps.append(new Option((p.no?"#"+p.no+" ":"")+(NM(p)),p.id)));
     ps.value=slot.pid||"";
     const pz=el("select","p");
     pz.append(new Option("守備",""));
@@ -787,39 +796,30 @@ function lineupBlock(y,ros){
 
   const rot=el("div","blk");rot.append(el("h4",null,"投手陣"));
   const rl=el("div","lu");
-  L.rot.forEach((pid,i)=>{
+  const pslot=(label,get,set,fmt)=>{
     const r=el("div","lus");
-    r.append(el("span","n",String(i+1)));
-    const s=el("select");s.append(new Option("—",""));
-    pits.forEach(({p})=>s.append(new Option((p.no?"#"+p.no+" ":"")+(p.name||"（無名）"),p.id)));
-    s.value=pid||"";
+    const lb=el("span","n");lb.style.cssText="flex:0 0 40px;text-align:left;font-size:11px";
+    lb.textContent=label;
+    const sel=el("select");sel.append(new Option("—",""));
+    pits.forEach(({p})=>sel.append(new Option((p.no?"#"+p.no+" ":"")+(NM(p)),p.id)));
+    sel.value=get()||"";
     const st=el("span","st");
-    const upd=()=>{const f=pits.find(x=>x.p.id===s.value);
-      st.textContent=f?(n(f.s.pit.w)+"勝 "+r2(pcalc(f.s.pit,lgEra(f.s.year)).era)):"";};
-    s.onchange=()=>{L.rot[i]=s.value;upd();save(1);};
+    const upd=()=>{const f=pits.find(x=>x.p.id===sel.value);
+      st.replaceChildren();
+      if(!f)return;
+      const c=pcalc(f.s.pit,lgEra(f.s.year));
+      const age=ageAt(f.p,n(f.s.year));
+      st.append(el("span",null,(age!==""?age+"歳 ":"")+fmt(f,c)));
+      if((f.s.injuries||[]).length)st.append(el("span","inj","故障"));};
+    sel.onchange=()=>{set(sel.value);upd();save(1);};
     upd();
-    const lb=el("span","st");lb.style.cssText="flex:0 0 46px;text-align:left";
-    lb.textContent="先発";
-    r.append(lb,s,st);rl.append(r);
-  });
-  const cr=el("div","lus");
-  cr.append(el("span","n","—"));
-  const cl=el("span","st");cl.style.cssText="flex:0 0 46px;text-align:left";cl.textContent="抑え";
-  const cs=el("select");cs.append(new Option("—",""));
-  pits.forEach(({p})=>cs.append(new Option((p.no?"#"+p.no+" ":"")+(p.name||"（無名）"),p.id)));
-  cs.value=L.closer||"";
-  const cst=el("span","st");
-  const cupd=()=>{const f=pits.find(x=>x.p.id===cs.value);
-    cst.textContent=f?(n(f.s.pit.sv)+"S "+r2(pcalc(f.s.pit,lgEra(f.s.year)).era)):"";};
-  cs.onchange=()=>{L.closer=cs.value;cupd();save(1);};cupd();
-  cr.append(cl,cs,cst);rl.append(cr);
+    r.append(lb,sel,st);rl.append(r);};
+  L.rot.forEach((pid,i)=>pslot("先発"+(i+1),()=>L.rot[i],v=>L.rot[i]=v,
+    (f,c)=>n(f.s.pit.w)+"勝"+n(f.s.pit.l)+"敗 "+r2(c.era)));
+  L.mid.forEach((pid,i)=>pslot("中継ぎ",()=>L.mid[i],v=>L.mid[i]=v,
+    (f,c)=>n(f.s.pit.hld)+"H "+r2(c.era)));
+  pslot("抑え",()=>L.closer,v=>L.closer=v,(f,c)=>n(f.s.pit.sv)+"S "+r2(c.era));
   rot.append(rl);
-  const mid=pits.filter(x=>x.s.role==="中継ぎ");
-  if(mid.length){
-    const c=el("div","chips");c.style.marginTop="9px";
-    mid.forEach(({p,s})=>c.append(el("span","badge off",(p.name||"（無名）")+" "+n(s.pit.hld)+"H")));
-    rot.append(el("p","note","中継ぎ登録"),c);
-  }
   const box=el("div");box.append(w,rot);return box;
 }
 function teamHist(m,fx,ys){
@@ -843,34 +843,104 @@ function teamHist(m,fx,ys){
     add((has(R.rank)?R.rank+"位":"—")+(R.jpChamp?" 日本一":R.pennant?" 優勝":""));
     add(has(R.w)?R.w:"—");add(has(R.l)?R.l:"—");add(has(R.d)?R.d:"—");
     add(ros.length);add(tc||"—");
-    add(bb?bb.p.name+" "+n(bb.s.bat.hr)+"本":"—");
-    add(pp?pp.p.name+" "+n(pp.s.pit.w)+"勝":"—");
+    add(bb?NM(bb.p)+" "+n(bb.s.bat.hr)+"本":"—");
+    add(pp?NM(pp.p)+" "+n(pp.s.pit.w)+"勝":"—");
     bd.append(tr);});
   tb.append(bd);wrap.append(tb);m.append(wrap);
 
-  /* 球団通算ランキング */
-  const agg=new Map();
-  S.db.players.forEach(p=>p.seasons.forEach(s=>{
-    if(s.team!==HOME)return;
-    const a=agg.get(p.id)||{p,hr:0,h:0,w:0,sv:0,war:0,y:0};
-    const cb=bc(s.bat,s.pos,lgOPS(s.year)),cp=pcalc(s.pit,lgEra(s.year));
-    a.hr+=n(s.bat.hr);
-    if(isFinite(cb.h))a.h+=cb.h;
-    if(isFinite(cb.war))a.war+=cb.war;
-    a.w+=n(s.pit.w);a.sv+=n(s.pit.sv);
-    if(isFinite(cp.war))a.war+=cp.war;
-    a.y++;agg.set(p.id,a);}));
-  const arr=[...agg.values()];
-  const rank=(label,key,unit)=>{
-    const top=arr.filter(a=>a[key]>0).sort((x,y2)=>y2[key]-x[key]).slice(0,5);
-    if(!top.length)return null;
-    const b=el("div","blk");b.append(el("h4",null,label));
+  m.append(rankBlock());
+}
+
+const RSTAT={
+  bat:[["h","安打","sum"],["hr","本塁打","sum"],["rbi","打点","sum"],["sb","盗塁","sum"],
+       ["d2","二塁打","sum"],["d3","三塁打","sum"],["bb","四球","sum"],["g","試合","sum"],
+       ["pa","打席","sum"],["war","WAR","sum"],["uzr","UZR","sum"],
+       ["avg","打率","rate"],["obp","出塁率","rate"],["slg","長打率","rate"],
+       ["ops","OPS","rate"],["wrc","wRC+","rate"]],
+  pit:[["w","勝利","sum"],["sv","セーブ","sum"],["hld","ホールド","sum"],["so","奪三振","sum"],
+       ["ip","投球回","sum"],["qs","QS","sum"],["cg","完投","sum"],["sho","完封","sum"],
+       ["g","登板","sum"],["war","WAR","sum"],
+       ["era","防御率","rate"],["whip","WHIP","rate"],["k9","奪三振率","rate"]]
+};
+const LOWBEST={era:1,whip:1};
+function statOf(p,s,key,kind){
+  if(kind==="bat"){
+    const c=bc(s.bat,s.pos,lgOPS(s.year)),b=s.bat||{};
+    if(key==="h")return c.h;if(key==="war")return c.war;
+    if(key==="avg")return c.avg;if(key==="slg")return c.slg;
+    if(key==="ops")return c.ops;if(key==="obp")return has(b.obp)?n(b.obp):NaN;
+    if(key==="wrc")return c.wrc;if(key==="uzr")return c.uzr;
+    if(key==="bb")return c.bb;
+    return n(b[key]);
+  }
+  const c=pcalc(s.pit,lgEra(s.year)),q=s.pit||{};
+  if(key==="ip")return c.outs/3;if(key==="so")return c.so;if(key==="qs")return c.qs;
+  if(key==="war")return c.war;if(key==="era")return c.era;if(key==="whip")return c.whip;
+  if(key==="k9")return has(q.k9)?n(q.k9):NaN;
+  return n(q[key]);
+}
+function regOK(p,s,kind){
+  return kind==="bat"?(n(s.bat.pa)>=REG_PA(n(s.games)))
+                     :(pcalc(s.pit,lgEra(s.year)).outs/3>=REG_IP(n(s.games)));
+}
+function rankBlock(){
+  const kind=S.rkind=S.rkind||"bat";
+  const scope=S.rscope=S.rscope||"home";
+  const list=RSTAT[kind];
+  if(!list.some(x=>x[0]===S.rkey))S.rkey=list[0][0];
+  const key=S.rkey,type=(list.find(x=>x[0]===key)||[])[2];
+  const w=el("div","blk");w.append(el("h4",null,"ランキング"));
+  const bar=el("div","row");
+  const k1=el("select");[["bat","打者"],["pit","投手"]].forEach(([v,l])=>k1.append(new Option(l,v)));
+  k1.value=kind;k1.onchange=()=>{S.rkind=k1.value;S.rkey=null;render();};
+  const k2=el("select");list.forEach(([v,l])=>k2.append(new Option(l,v)));
+  k2.value=key;k2.onchange=()=>{S.rkey=k2.value;render();};
+  const k3=el("select");[["home","M9在籍時"],["all","キャリア全体"]].forEach(([v,l])=>k3.append(new Option(l,v)));
+  k3.value=scope;k3.onchange=()=>{S.rscope=k3.value;render();};
+  [k1,k2,k3].forEach(x=>{x.style.cssText="padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:14px";});
+  bar.append(k1,k2,k3);w.append(bar);
+
+  const tot=new Map(),best=[];
+  S.db.players.forEach(p=>{
+    if((kind==="bat")===isP(p))return;
+    if(scope==="home"&&!p.seasons.some(s=>s.team===HOME))return;
+    let num=0,den=0,sum=0,ok=false;
+    p.seasons.forEach(s=>{
+      if(scope==="home"&&s.team!==HOME)return;
+      const v=statOf(p,s,key,kind);
+      if(!isFinite(v))return;
+      ok=true;
+      if(type==="sum")sum+=v;
+      else{const wgt=kind==="bat"?n(s.bat.pa):(pcalc(s.pit,lgEra(s.year)).outs/3);
+        num+=v*wgt;den+=wgt;}
+      if(type!=="rate"||regOK(p,s,kind))best.push({p,s,v});
+    });
+    if(!ok)return;
+    if(type==="sum")tot.set(p.id,{p,v:sum});
+    else if(den>=(kind==="bat"?1000:300))tot.set(p.id,{p,v:num/den});
+  });
+  const low=LOWBEST[key];
+  const cmp=(a,b)=>low?a.v-b.v:b.v-a.v;
+  const fmtv=v=>{
+    if(key==="avg"||key==="obp"||key==="slg")return r3(v);
+    if(key==="ops")return isFinite(v)?v.toFixed(3):"—";
+    if(key==="era"||key==="whip")return r2(v);
+    if(key==="war"||key==="uzr"||key==="k9")return r1(v);
+    if(key==="ip")return r1(v);
+    return String(Math.round(v));};
+  const col=(title,rows,withYear)=>{
+    const b=el("div","blk");b.append(el("h4",null,title));
+    if(!rows.length){b.append(el("p","note","該当なし"));return b;}
     const kv=el("dl","kv");
-    top.forEach(a=>{kv.append(el("dt",null,a.p.name||"（無名）"),el("dd",null,r1(a[key]).replace(/\.0$/,"")+unit));});
+    rows.slice(0,10).forEach((r,i)=>{
+      kv.append(el("dt",null,(i+1)+". "+NM(r.p)+(withYear?"　"+r.s.year:"")));
+      kv.append(el("dd",null,fmtv(r.v)));});
     b.append(kv);return b;};
-  [["球団通算本塁打","hr","本"],["球団通算安打","h","安打"],["球団通算勝利","w","勝"],
-   ["球団通算セーブ","sv","S"],["球団通算WAR","war",""]].forEach(([lb,k,u])=>{
-    const b=rank(lb,k,u);if(b)m.append(b);});
+  w.append(col("通算",[...tot.values()].sort(cmp),false));
+  w.append(col("シーズン最高",best.sort(cmp),true));
+  if(type==="rate")w.append(el("p","note",
+    "率の通算は"+(kind==="bat"?"1000打席":"300回")+"以上、シーズン最高は規定到達年のみを対象にしています。"));
+  return w;
 }
 
 /* ---- 入力部品 ---- */
@@ -897,7 +967,7 @@ function playerView(m,fx){
   const p=S.db.players.find(x=>x.id===S.cur);if(!p){S.cur=null;return render();}
   const hd=el("div","row");
   const back=el("button",null,"戻る");back.onclick=()=>{S.cur=null;S.open=null;render();scrollTo(0,0);};
-  const t=el("div",null,(p.no?"#"+p.no+" ":"")+(p.name||"（無名）"));t.style.fontWeight="700";
+  const t=el("div",null,(p.no?"#"+p.no+" ":"")+(NM(p)));t.style.fontWeight="700";
   hd.append(back,t);m.append(hd);
   storageWarn(m);
   const nav=el("nav","tabs");
@@ -913,7 +983,7 @@ function playerView(m,fx){
     const a=el("button","pri","シーズンを追加");
     a.onclick=()=>{p.seasons.push(newSeason(p));save(1);render();};fx.append(a);}
   const d=el("button","danger","選手を削除");
-  d.onclick=()=>dialog({title:(p.name||"この選手")+"を削除",body:"戻せません。",danger:true,okText:"削除する",
+  d.onclick=()=>dialog({title:(NM(p)==="（無名）"?"この選手":NM(p))+"を削除",body:"戻せません。",danger:true,okText:"削除する",
     onOk:()=>{S.db.players=S.db.players.filter(x=>x.id!==p.id);S.cur=null;save(1);render();}});
   const bk=el("button",null,"一覧へ");bk.onclick=()=>{S.cur=null;render();scrollTo(0,0);};
   fx.append(bk,d);
@@ -921,25 +991,42 @@ function playerView(m,fx){
 function tabInfo(m,p){
   const g=el("div","grid");let dr;
   const redraw=()=>{if(dr)dr._i.value=draftYear(p);};
-  g.append(field("名前",p,"name",{mode:"text",wide:true}));
+  g.append(field("姓",p,"last",{mode:"text"}));
+  g.append(field("名",p,"first",{mode:"text"}));
   g.append(field("背番号",p,"no",{mode:"numeric"}));
   g.append(field("身長(cm)",p,"height",{mode:"numeric"}));
   g.append(field("生年月日",p,"dob",{type:"date",on:redraw}));
-  g.append(field("経歴",p,"route",{options:["高卒","大卒","社会人"],on:redraw}));
-  dr=field("ドラフト年",p,"draftYear",{mode:"numeric",ro:p.draftAuto});
-  dr._i.value=draftYear(p);g.append(dr);
-  const man=el("div","f");man.append(el("label",null," "));
-  const mb=el("button",null,p.draftAuto?"手入力にする":"自動に戻す");
-  mb.onclick=()=>{p.draftAuto=!p.draftAuto;if(!p.draftAuto)p.draftYear=autoDraft(p);save(1);render();};
-  man.append(mb);g.append(man);
-  g.append(field("ドラフト順位",p,"draftRank",{mode:"text",ph:"1位／育成2位 など"}));
-  g.append(field("出身",p,"from",{mode:"text"}));
-  g.append(field("出身高校",p,"hs",{mode:"text",wide:true}));
-  g.append(field("大学・社会人",p,"school",{mode:"text",wide:true,ph:"高卒なら空欄"}));
+  if(!p.foreign){
+    g.append(field("経歴",p,"route",{options:["高卒","大卒","社会人"],on:redraw}));
+    dr=field("ドラフト年",p,"draftYear",{mode:"numeric",ro:p.draftAuto});
+    dr._i.value=draftYear(p);g.append(dr);
+    const man=el("div","f");man.append(el("label",null," "));
+    const mb=el("button",null,p.draftAuto?"手入力にする":"自動に戻す");
+    mb.onclick=()=>{p.draftAuto=!p.draftAuto;if(!p.draftAuto)p.draftYear=autoDraft(p);save(1);render();};
+    man.append(mb);g.append(man);}
+  if(!p.foreign)g.append(field("ドラフト順位",p,"draftRank",{mode:"text",ph:"1位／育成2位 など"}));
+  g.append(field(p.foreign?"出身国":"出身",p,"from",{mode:"text"}));
+  if(p.origin!=="foreign")g.append(field("大学・社会人",p,"school",{mode:"text",wide:true,ph:"高卒なら空欄"}));
   g.append(field("区分",p,"type",{options:["野手","投手"],on:()=>render()}));
   g.append(field("打席",p,"bats",{options:["右打ち","左打ち","両打ち"]}));
   g.append(field("投球",p,"throws",{options:["右投げ","左投げ"]}));
   m.append(g);
+  const fb=el("div","blk");fb.append(el("h4",null,"区分"));
+  const fc=el("div","chips");
+  ORIGIN.forEach(([v,lb])=>{
+    const lab=el("label","chip"),cb=el("input");cb.type="radio";cb.name="origin";
+    cb.checked=(p.origin||"draft")===v;
+    cb.onchange=()=>{p.origin=v;p.foreign=(v==="foreign");
+      if(v==="foreign")p.draftAuto=false;save(1);render();};
+    lab.append(cb,el("span",null,lb));fc.append(lab);});
+  fb.append(fc);
+  if(p.origin==="transfer"||p.origin==="foreign"){
+    const jg=el("div","grid");jg.style.marginTop="12px";
+    jg.append(field("加入年",p,"joinYear",{mode:"numeric"}));
+    jg.append(field("加入方法",p,"joinVia",{options:JOINVIA}));
+    jg.append(field("前所属",p,"prevTeam",{mode:"text",wide:true,ph:"前の球団名"}));
+    fb.append(jg);}
+  m.append(fb);
   if(!isP(p)){
     const b=el("div","blk");b.append(el("h4",null,"守れる位置（複数可）"));
     const c=el("div","chips");
